@@ -2,6 +2,7 @@ using Pkg
 Pkg.activate(joinpath("C:\\Users", PC, "OneDrive\\PhD\\GitHub\\Networks"))
 cd(joinpath("C:\\Users", PC, "OneDrive\\PhD\\GitHub\\Networks"))
 meta_path = joinpath("C:\\Users", PC, "OneDrive\\PhD\\Metaweb Modelling")
+simbio_path = joinpath("C:\\Users", PC, "OneDrive\\PhD\\GitHub\\simBio")
 using ArchGDAL #, Shapefile, NCDatasets
 using CSV, DataFrames
 using NamedArrays, StaticArrays, OrderedCollections
