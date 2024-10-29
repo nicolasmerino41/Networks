@@ -1,5 +1,5 @@
 ###### BUILD ADJACENCY DICTIONARY WITH NUMBERS ######
-function build_numbered_adjacency_dict(adj_matrix::NamedArray)
+function build_numbered_adjacency_dict(adj_matrix::AbstractArray)
     # Initialize an empty dictionary where each predator maps to a set of preys
     adjacency_dict = Dict{Int, Set{Int}}()
 

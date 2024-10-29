@@ -167,3 +167,9 @@ function Makie.convert_arguments(t::Type{<:Makie.Heatmap}, A::AbstractArray{<:My
     scalars = map(mystruct -> mystruct.b, A)
     return Makie.convert_arguments(t, scalars)
 end
+# Define conversion function specifically for Raster of MyStructs256
+function Makie.convert_arguments(t::Type{<:Makie.Heatmap}, A::AbstractRaster{<:MyStructs256{Float64}})
+    # Extract the 'b' field from each MyStructs256 element to create a matrix of scalars
+    scalars = map(mystruct -> mystruct.b, A)
+    return Makie.convert_arguments(t, scalars)
+end
