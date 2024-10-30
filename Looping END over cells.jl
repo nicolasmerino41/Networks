@@ -1,3 +1,4 @@
+using WGLMakie
 #### I'M NOT SURE raster_with_abundances_with_B0 IS NECCESSARY ####
 raster_with_abundances_with_B0 = deepcopy(raster_with_abundances)
 for cell in idx
@@ -6,18 +7,17 @@ for cell in idx
     raster_with_abundances_with_B0[cell...] = MyStructs256(binary_vector)
 end
 
-simulation_matrix = Matrix(undef, 125, 76)
+# simulation_matrix = Matrix(undef, 125, 76)
 # @Threads.threads for cell in idx[1:8]
 cell = idx[50]    
-model = END.Model()
+######################### USEFUL VARIABLES ###########################################
 subcommunity = Int.(subcommunity_raster[cell...])
+
 adj = build_numbered_adjacency_dict(subcommunity)
 fw = Foodweb(adj)
+
 non_zero_body_masses = body_mass_vector[raster_with_abundances_with_B0[cell...].a .> 0]
-model += fw
-model += BodyMass(non_zero_body_masses)
-model += Mortality(0.01)
-    
+
 herb_carv_vector = []
 carv_herb_vector = []
 for i in 1:length(non_zero_body_masses)
@@ -29,6 +29,7 @@ for i in 1:length(non_zero_body_masses)
         carv_herb_vector = push!(carv_herb_vector, 0)
     end
 end
+
 # Identify herbivores and predators based on your data:
 herbivores = Bool.(herb_carv_vector)
 predators  = Bool.(carv_herb_vector)
@@ -46,8 +47,8 @@ for i in 1:num_species
         metabolic_class[i] = :ectotherm
     end
 end
-model += MetabolicClass(metabolic_class)
-model += Metabolism(:Miele2019)
+
+homogeneous_metabolic_class = 0.314 .* (non_zero_body_masses.^-0.25)
 
 # Define logistic growth for herbivores
 Ki_value = npp_raster[cell...]   # Total Net Primary Productivity
@@ -77,9 +78,16 @@ g_competition = END.LogisticGrowth(
     K = Ki,
     producers_competition = producers_competition
 )
+######################################################################################
+########################## SET UP MODEL STEP BY STEP #################################
+######################################################################################
+model = END.Model()
+model += fw
+model += BodyMass(non_zero_body_masses)
+model += Mortality(0.01)
+model += MetabolicClass(metabolic_class)
+model += Metabolism(:Miele2019)
 model += g_competition
-metabolism_vector = 0.314 .* (non_zero_body_masses.^-0.25)
-# Add functional response for predators
 model += END.ClassicResponse(h = 2.0)
 # model += END.LinearResponse()
 # model += HillExponent(2.0)
@@ -88,12 +96,15 @@ w = Ki_value / num_herbivores
 
 # Set initial conditions IF NEEDEED
 B0 = [herbivores[i] ? w : w/10 for i in 1:num_species]
-# Define custom allometry with specific parameters for producers
-custom_allometry = Allometry(
-    producer = (a = 0.0138, b = -1/4),        # Set a and b for producers
-    invertebrate = (a = 0.314, b = -1/4),     # Default values for invertebrates
-    ectotherm = (a = 0.88, b = -1/4)          # Default values for ectotherms
-)
+
+callback = extinction_callback(model_default_bio, non_zero_body_masses; verbose = true)
+
+@time d = simulate(model, B0, 100; callback)
+
+MK.plot(d)
+
+##########ÇÇ#################################################################################
+########################## USE DEFAULT MODEL + MODIFICATIONS ##############################
 model_default_bio = default_model(
     fw,
     BodyMass(non_zero_body_masses),
@@ -105,8 +116,12 @@ model_default_bio = default_model(
     EfficiencyFromRawValues(1.0),
 )
 
+w = Ki_value / num_herbivores
+B0 = [herbivores[i] ? w : w/10 for i in 1:num_species]
+
 callback = extinction_callback(model_default_bio, non_zero_body_masses; verbose = true)
+
 @time d = simulate(model, B0, 100; callback)
+
 MK.plot(d)
-simulation_matrix[cell...] = d
-    
+   
