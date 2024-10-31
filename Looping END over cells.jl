@@ -1,4 +1,3 @@
-using WGLMakie
 #### I'M NOT SURE raster_with_abundances_with_B0 IS NECCESSARY ####
 raster_with_abundances_with_B0 = deepcopy(raster_with_abundances)
 for cell in idx
@@ -9,7 +8,7 @@ end
 
 # simulation_matrix = Matrix(undef, 125, 76)
 # @Threads.threads for cell in idx[1:8]
-cell = idx[50]    
+cell = idx[1001]    
 ######################### USEFUL VARIABLES ###########################################
 subcommunity = Int.(subcommunity_raster[cell...])
 
@@ -49,25 +48,29 @@ for i in 1:num_species
 end
 
 homogeneous_metabolic_class = 0.314 .* (non_zero_body_masses.^-0.25)
-
+homogeneous_metabolic_class_with_no_herbivores = 0.314 .* (non_zero_body_masses.^-0.25) 
+homogeneous_metabolic_class_with_no_herbivores[herbivores] .= 0.0
 # Define logistic growth for herbivores
 Ki_value = npp_raster[cell...]   # Total Net Primary Productivity
-Ki_value = 1.0
+Ki_value_unity = 1.0
 num_herbivores = length(herbivores[herbivores .== true])
-    
-ri = [herbivores[i] ? rand() : 0.0 for i in 1:num_species]
-Ki = [herbivores[i] ? Ki_value : 0.0 for i in 1:num_species]
+num_predators = num_species - num_herbivores
+
+ri = [herbivores[i] ? 1.0 : 0.0 for i in 1:num_species]
+Ki = [herbivores[i] ? Ki_value/num_herbivores : 0.0 for i in 1:num_species]
 
 # Create competition matrix among herbivores (absolute competition)
 producers_competition = zeros(num_species, num_species)
 for i in axes(subcommunity, 1), j in axes(subcommunity, 2)
-    if herbivores[i] == 1 && herbivores[j] == 1
+    if herbivores[i] == 1 && herbivores[j] == 1 && i != j
+        producers_competition[i, j] = 0.0
+    elseif herbivores[i] == 1 && herbivores[j] == 1 && i == j
         producers_competition[i, j] = 1.0
     end
 end
 consumers_efficiency = zeros(num_species, num_species)
 for i in axes(subcommunity, 1), j in axes(subcommunity, 2)
-    if herbivores[j] == 0 
+    if subcommunity[i, j] != 0 
         consumers_efficiency[i, j] = 1.0
     end
 end
@@ -76,34 +79,43 @@ end
 g_competition = END.LogisticGrowth(
     r = ri,
     K = Ki,
-    producers_competition = producers_competition
+    producers_competition = ProducersCompetitionFromDiagonal(1.0)
 )
 ######################################################################################
 ########################## SET UP MODEL STEP BY STEP #################################
 ######################################################################################
-model = END.Model()
-model += fw
-model += BodyMass(non_zero_body_masses)
-model += Mortality(0.01)
-model += MetabolicClass(metabolic_class)
-model += Metabolism(:Miele2019)
-model += g_competition
-model += END.ClassicResponse(h = 2.0)
-# model += END.LinearResponse()
-# model += HillExponent(2.0)
+begin
+    model = END.Model()
+    model += fw
+    model += BodyMass(non_zero_body_masses)
+    model += MetabolicClass(:all_ectotherms)
+    model += Mortality(0.0)
+    model += Metabolism(homogeneous_metabolic_class_with_no_herbivores)
+    model += g_competition
+    interference_matrix = zeros(num_species, num_species)
+    for i in axes(subcommunity, 1), j in axes(subcommunity, 2)
+        if subcommunity[i, j] != 0
+            interference_matrix[i, j] = 0.7
+        end
+    end
+    model += END.BioenergeticResponse(c = Interference, e = consumers_efficiency)
+    # model += END.LinearResponse()
+    # model += HillExponent(2.0)
+end
 
 w = Ki_value / num_herbivores
 
 # Set initial conditions IF NEEDEED
-B0 = [herbivores[i] ? w : w/10 for i in 1:num_species]
+B0 = [herbivores[i] ? w : w*0.000001 for i in 1:num_species]
 
-callback = extinction_callback(model_default_bio, non_zero_body_masses; verbose = true)
+callback = extinction_callback(model, non_zero_body_masses; verbose = true)
 
-@time d = simulate(model, B0, 100; callback)
+@time a = simulate(model, B0, 1000; callback)
 
-MK.plot(d)
-
-##########ÇÇ#################################################################################
+MK.plot(a)
+richness(a[end])
+sum(a[end])
+###########################################################################################
 ########################## USE DEFAULT MODEL + MODIFICATIONS ##############################
 model_default_bio = default_model(
     fw,
@@ -124,4 +136,34 @@ callback = extinction_callback(model_default_bio, non_zero_body_masses; verbose 
 @time d = simulate(model, B0, 100; callback)
 
 MK.plot(d)
-   
+
+###########################################################################################
+########################### NICHE MODEL FOODWEB ###########################################
+fw1 = Foodweb(:niche; S = 86, C = 0.1)
+begin
+    model = END.Model()
+    model += fw1
+    model += BodyMass(non_zero_body_masses)
+    model += MetabolicClass(:all_ectotherms)
+    model += Mortality(:Miele2019)
+    model += MetabolismFromRawValues(homogeneous_metabolic_class)
+    model += END.LogisticGrowth()
+    interference_matrix = zeros(num_species, num_species)
+    for i in axes(subcommunity, 1), j in axes(subcommunity, 2)
+        if subcommunity[i, j] != 0
+            interference_matrix[i, j] = rand()
+        end
+    end
+    model += END.BioenergeticResponse()
+    # model += END.LinearResponse()
+    # model += HillExponent(2.0)
+end
+
+B0 = [rand() for _ in 1:num_species]
+
+callback = extinction_callback(model, 10e-6; verbose = true)
+
+@time a = simulate(model, B0, 100; callback)
+
+MK.plot(a)
+
