@@ -98,7 +98,7 @@ begin
             interference_matrix[i, j] = 0.7
         end
     end
-    model += END.BioenergeticResponse(c = Interference, e = consumers_efficiency)
+    model += END.BioenergeticResponse(e = consumers_efficiency)
     # model += END.LinearResponse()
     # model += HillExponent(2.0)
 end
@@ -106,7 +106,7 @@ end
 w = Ki_value / num_herbivores
 
 # Set initial conditions IF NEEDEED
-B0 = [herbivores[i] ? w : w*0.000001 for i in 1:num_species]
+B0 = [herbivores[i] ? w : w/1000 for i in 1:num_species]
 
 callback = extinction_callback(model, non_zero_body_masses; verbose = true)
 
@@ -136,34 +136,42 @@ callback = extinction_callback(model_default_bio, non_zero_body_masses; verbose 
 @time d = simulate(model, B0, 100; callback)
 
 MK.plot(d)
-
 ###########################################################################################
 ########################### NICHE MODEL FOODWEB ###########################################
-fw1 = Foodweb(:niche; S = 86, C = 0.1)
+fw1 = Foodweb(:niche; S = 105, C = 0.1)
+non_zero_body_masses_for_niche = Float64[]
+for i in model_niche.metabolic_classes
+    if i == :producer
+        push!(non_zero_body_masses_for_niche, 0.1)
+    elseif i == :ectotherm
+        push!(non_zero_body_masses_for_niche, 1.0)
+    end
+end
 begin
-    model = END.Model()
-    model += fw1
-    model += BodyMass(non_zero_body_masses)
-    model += MetabolicClass(:all_ectotherms)
-    model += Mortality(:Miele2019)
-    model += MetabolismFromRawValues(homogeneous_metabolic_class)
-    model += END.LogisticGrowth()
+    model_niche = END.Model()
+    model_niche += fw1
+    model_niche += BodyMass(non_zero_body_masses_for_niche)
+    model_niche += MetabolicClass(:all_ectotherms)
+    model_niche += Mortality(:Miele2019)
+    model_niche += MetabolismFromRawValues(homogeneous_metabolic_class)
+    model_niche += END.LogisticGrowth()
     interference_matrix = zeros(num_species, num_species)
     for i in axes(subcommunity, 1), j in axes(subcommunity, 2)
         if subcommunity[i, j] != 0
             interference_matrix[i, j] = rand()
         end
     end
-    model += END.BioenergeticResponse()
-    # model += END.LinearResponse()
-    # model += HillExponent(2.0)
+    model_niche += END.BioenergeticResponse()
+    # model_niche += END.LinearResponse()
+    # model_niche += HillExponent(2.0)
 end
 
 B0 = [rand() for _ in 1:num_species]
 
-callback = extinction_callback(model, 10e-6; verbose = true)
+callback = extinction_callback(model_niche, 10e-6; verbose = true)
 
-@time a = simulate(model, B0, 100; callback)
+@time a = simulate(model_niche, B0, 100; callback)
 
 MK.plot(a)
-
+richness(a[end])
+total_biomass(a[end])
