@@ -1,19 +1,38 @@
-#### I'M NOT SURE raster_with_abundances_with_B0 IS NECCESSARY ####
-raster_with_abundances_with_B0 = deepcopy(raster_with_abundances)
-for cell in idx
-    abundance_vector = raster_with_abundances[cell...].a
-    binary_vector = SVector{256, Float64}([!iszero(abundance_vector[i]) ? 1.0 : 0.0 for i in 1:length(abundance_vector)])
-    raster_with_abundances_with_B0[cell...] = MyStructs256(binary_vector)
+function filter_prey_by_body_mass_ratio(predator_prey_dict::Dict{Int64, Set{Int64}}, body_masses::Vector{Float64}, ratio_threshold::Float64)
+    # Dictionary to store the filtered prey sets
+    filtered_dict = Dict{Int64, Set{Int64}}()
+    
+    for (predator, preys) in predator_prey_dict
+        # Get the predator's body mass
+        predator_mass = body_masses[predator]
+        
+        # Initialize a new set for filtered prey
+        filtered_preys = Set{Int64}()
+        
+        # Filter prey based on body mass ratio
+        for prey in preys
+            if (predator_mass / body_masses[prey]) >= ratio_threshold
+                push!(filtered_preys, prey)
+            end
+        end
+        
+        # Only add to the dictionary if there are any preys left
+        if !isempty(filtered_preys)
+            filtered_dict[predator] = filtered_preys
+        end
+    end
+    
+    return filtered_dict
 end
+filtered_adj = filter_prey_by_body_mass_ratio(adj, non_zero_body_masses, 1.0)
 
-# simulation_matrix = Matrix(undef, 125, 76)
-# @Threads.threads for cell in idx[1:8]
-cell = idx[2000]    
+#############################################################################################
+#############################################################################################
 ######################### USEFUL VARIABLES ###########################################
 subcommunity = Int.(subcommunity_raster[cell...])
 
 adj = build_numbered_adjacency_dict(subcommunity)
-fw = Foodweb(adj)
+fw = Foodweb(filtered_adj)
 
 non_zero_body_masses = body_mass_vector[raster_with_abundances_with_B0[cell...].a .> 0]
 
@@ -56,7 +75,7 @@ Ki_value_unity = 1.0
 num_herbivores = length(herbivores[herbivores .== true])
 num_predators = num_species - num_herbivores
 
-ri = [herbivores[i] ? 1.0 : 0.0 for i in 1:num_species]
+ri = [herbivores[i] ? rand() : 0.0 for i in 1:num_species]
 Ki = [herbivores[i] ? Ki_value/num_herbivores : 0.0 for i in 1:num_species]
 
 # Create competition matrix among herbivores (absolute competition)
@@ -98,7 +117,7 @@ begin
             interference_matrix[i, j] = 0.7
         end
     end
-    model += END.BioenergeticResponse(e = consumers_efficiency)
+    model += END.BioenergeticResponse(c = IntraspecificInterference(1.0))
     # model += END.LinearResponse()
     # model += HillExponent(2.0)
 end
@@ -106,72 +125,13 @@ end
 w = Ki_value / num_herbivores
 
 # Set initial conditions IF NEEDEED
-B0 = [herbivores[i] ? w : w/1000 for i in 1:num_species]
+B0 = [herbivores[i] ? w : w/10 for i in 1:num_species]
 
 callback = extinction_callback(model, non_zero_body_masses; verbose = true)
 
-@time a = simulate(model, B0, 100; callback)
+@time a = simulate(model, B0, 10000; callback)
 
 MK.plot(a)
 richness(a[end])
 sum(a[end])
-###########################################################################################
-########################## USE DEFAULT MODEL + MODIFICATIONS ##############################
-model_default_bio = default_model(
-    fw,
-    BodyMass(non_zero_body_masses),
-    MetabolicClass(metabolic_class),
-    Metabolism(:Miele2019),
-    END.LogisticGrowth(r = ri, K = Ki, producers_competition = producers_competition),
-    Mortality(0.0),
-    HillExponent(2.0),
-    EfficiencyFromRawValues(1.0),
-)
-
-w = Ki_value / num_herbivores
-B0 = [herbivores[i] ? w : w/10 for i in 1:num_species]
-
-callback = extinction_callback(model_default_bio, non_zero_body_masses; verbose = true)
-
-@time d = simulate(model, B0, 100; callback)
-
-MK.plot(d)
-###########################################################################################
-########################### NICHE MODEL FOODWEB ###########################################
-fw1 = Foodweb(:niche; S = 75, C = 0.1)
-non_zero_body_masses_for_niche = Float64[]
-for i in model_niche.metabolic_classes
-    if i == :producer
-        push!(non_zero_body_masses_for_niche, 0.1)
-    elseif i == :ectotherm
-        push!(non_zero_body_masses_for_niche, 1.0)
-    end
-end
-begin
-    model_niche = END.Model()
-    model_niche += fw1
-    model_niche += MetabolicClass(:all_ectotherms)
-    model_niche += BodyMass(non_zero_body_masses_for_niche)
-    model_niche += Mortality(:Miele2019)
-    model_niche += MetabolismFromRawValues(homogeneous_metabolic_class)
-    model_niche += END.LogisticGrowth()
-    interference_matrix = zeros(num_species, num_species)
-    for i in axes(subcommunity, 1), j in axes(subcommunity, 2)
-        if subcommunity[i, j] != 0
-            interference_matrix[i, j] = rand()
-        end
-    end
-    model_niche += END.BioenergeticResponse()
-    # model_niche += END.LinearResponse()
-    # model_niche += HillExponent(2.0)
-end
-
-B0 = [rand() for _ in 1:num_species]
-
-callback = extinction_callback(model_niche, 10e-6; verbose = true)
-
-@time a = simulate(model_niche, B0, 100; callback)
-
-MK.plot(a)
-richness(a[end])
-total_biomass(a[end])
+println(length(model.metabolic_classes[model.metabolic_classes .!= :ectotherm]))

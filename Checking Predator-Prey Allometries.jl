@@ -20,7 +20,7 @@ function average_body_mass_ratios(predator_prey_dict, body_masses)
     
     return average_ratios
 end
-avg_ratios =average_body_mass_ratios(adj, non_zero_body_masses)
+avg_ratios = average_body_mass_ratios(adj, non_zero_body_masses)
 
 function vector_body_mass_ratios(predator_prey_dict, body_masses)
     # Dictionary to store the average body mass ratio for each predator
@@ -63,10 +63,7 @@ PL.scatter(predators, log_vector_ratios,
 )
 # Add a horizontal red line at y = 1
 hline!([0], color = :red, linestyle = :dash, label = "Ratio = 0")
-display(plot)
 
-
-PL.boxplot(predators, vector_ratios)
 ####################################################################################
 ####################################################################################
 ####################### LOOP FOR 20 CELLS SIMULTANEOUSLY ###########################
