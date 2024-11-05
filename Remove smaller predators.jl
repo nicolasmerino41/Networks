@@ -98,7 +98,7 @@ end
 g_competition = END.LogisticGrowth(
     r = ri,
     K = Ki,
-    producers_competition = ProducersCompetitionFromDiagonal(1.0)
+    producers_competition = ProducersCompetition(1.0)
 )
 ######################################################################################
 ########################## SET UP MODEL STEP BY STEP #################################
@@ -109,7 +109,7 @@ begin
     model += BodyMass(non_zero_body_masses)
     model += MetabolicClass(:all_ectotherms)
     model += Mortality(0.0)
-    model += Metabolism(homogeneous_metabolic_class_with_no_herbivores)
+    model += Metabolism(:Miele2019)
     model += g_competition
     interference_matrix = zeros(num_species, num_species)
     for i in axes(subcommunity, 1), j in axes(subcommunity, 2)
@@ -117,7 +117,7 @@ begin
             interference_matrix[i, j] = 0.7
         end
     end
-    model += END.BioenergeticResponse(c = IntraspecificInterference(1.0))
+    model += END.BioenergeticResponse(c = IntraspecificInterference(0.5), e = Efficiency(:Miele2019))
     # model += END.LinearResponse()
     # model += HillExponent(2.0)
 end
@@ -135,3 +135,5 @@ MK.plot(a)
 richness(a[end])
 sum(a[end])
 println(length(model.metabolic_classes[model.metabolic_classes .!= :ectotherm]))
+println(model.metabolic_classes)
+println(a[end])

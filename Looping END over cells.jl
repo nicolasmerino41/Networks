@@ -14,7 +14,7 @@ subcommunity = Int.(subcommunity_raster[cell...])
 
 adj = build_numbered_adjacency_dict(subcommunity)
 fw = Foodweb(adj)
-
+    
 non_zero_body_masses = body_mass_vector[raster_with_abundances_with_B0[cell...].a .> 0]
 
 herb_carv_vector = []
