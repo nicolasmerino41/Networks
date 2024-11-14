@@ -63,7 +63,7 @@ Predator(; m::AbstractFloat, a::AbstractFloat, h::AbstractFloat, e::AbstractFloa
 
 # Create list of predators
 function create_predator_list(interaction_matrix; 
-                               m_mean::AbstractFloat=0.5, m_sd::AbstractFloat=0.02,
+                               m_mean::AbstractFloat=0.1, m_sd::AbstractFloat=0.02,
                                a_mean::AbstractFloat=0.001, a_sd::AbstractFloat=0.0001,
                                h_mean::AbstractFloat=0.1, h_sd::AbstractFloat=0.01,
                                e_mean::AbstractFloat=0.1, e_sd::AbstractFloat=0.01,
@@ -156,18 +156,25 @@ function ecosystem_dynamics!(du, u, p, t)
     du[1:S_star] = du_H
     du[S_star+1:end] = du_P
 end
-
+cell1 = idx[262][1]
+cell2 = idx[262][2]
 
 # Main simulation function with extinction callback and plotting
-function run_real_community_simulation(interaction_matrix, NPP_raster, cell; extinction_threshold=1.0, legend=false)
-    NPP = NPP_raster[cell[1], cell[2]]
+function run_real_community_simulation(NPP_raster, cell; extinction_threshold=1.0, legend=false, npp = false, mu = 0.5, m_mean_pred = 0.1, plot = true)
+    
+    interaction_matrix = Bool.(Int.(subcommunity_raster[cell...]))
+    
+    NPP = Float64(NPP_raster[cell...])
     num_herbivores, num_predators = count_trophic_groups(interaction_matrix)
-
-    mu = 0.5
+    if !isnothing(npp)
+        NPP = Float64(npp)
+    end
+    println("NPP: ", typeof(NPP))
+    # mu = 0.1
     H0_mean_aprox = NPP / num_herbivores
-
+    
     herbivores_list = create_herbivores_list(interaction_matrix, H0_mean=H0_mean_aprox)
-    predator_list = create_predator_list(interaction_matrix)
+    predator_list = create_predator_list(interaction_matrix; m_mean = m_mean_pred)
     calculate_growth_rates(herbivores_list, NPP, mu)
 
     S_star = length(herbivores_list)
@@ -176,8 +183,8 @@ function run_real_community_simulation(interaction_matrix, NPP_raster, cell; ext
         beta_matrix[i, i] = 1.0
     end
 
-    H_init_values = [sp.H_init for sp in herbivores_list]
-    P_init_values = [pred.P_init for pred in predator_list]
+    H_init_values = Float64[sp.H_init for sp in herbivores_list]
+    P_init_values = Float64[pred.P_init for pred in predator_list]
     u_init = vcat(H_init_values, P_init_values)
 
     tspan = (0.0, 200.0)
@@ -192,24 +199,23 @@ function run_real_community_simulation(interaction_matrix, NPP_raster, cell; ext
     herbivore_data = sol[1:length(herbivores_list), :]  # Herbivore dynamics
     predator_data = sol[length(herbivores_list)+1:end, :]  # Predator dynamics
 
-    # Ensure extinction densities are properly set to 0.0
-    herbivore_data[:, end][herbivore_data[:, end] .<= extinction_threshold] .= 0.0
-    predator_data[:, end][predator_data[:, end] .<= extinction_threshold] .= 0.0
+    # Extinction analysis
+    extinct_herbivores = count(herbivore_data[:, end] .<= 1.0)
+    extinct_predators = count(predator_data[:, end] .<= 1.0)
+    alive_herbivores = num_herbivores - extinct_herbivores
+    alive_predators = num_predators - extinct_predators
 
     # Final biomass
     final_herbivore_biomass = sum(herbivore_data[:, end])
     final_predator_biomass = sum(predator_data[:, end])
 
-    # Extinction analysis
-    extinct_herbivores = count(herbivore_data[:, end] .== 0.0)
-    extinct_predators = count(predator_data[:, end] .== 0.0)
-
     println("Simulation Results:")
     println("Final Herbivore Biomass: ", final_herbivore_biomass)
     println("Final Predator Biomass: ", final_predator_biomass)
-    println("$extinct_herbivores out of $num_herbivores herbivore species went extinct.")
-    println("$extinct_predators out of $num_predators predator species went extinct.")
+    println("$alive_herbivores/$num_herbivores herbivore species were present at the end of the simulation.")
+    println("$alive_predators/$num_predators predator species were present at the end of the simulation.")
 
+    if plot
     # Plotting dynamics
     fig = MK.Figure(; size = (600, 500))
 
@@ -233,6 +239,7 @@ function run_real_community_simulation(interaction_matrix, NPP_raster, cell; ext
 
     # Display the figure
     display(fig)
+    end
 end
 
-run_real_community_simulation(IM, npp_raster, cell)
+run_real_community_simulation(npp_raster, idx[262]; plot = false, mu = 1.0, m_mean_pred = 0.05)
