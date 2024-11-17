@@ -8,7 +8,7 @@ end
 
 # simulation_matrix = Matrix(undef, 125, 76)
 # @Threads.threads for cell in idx[1:8]
-cell = idx[1000]    
+cell = sample(idx, 1)[1]    
 ######################### USEFUL VARIABLES ###########################################
 IM = Bool.(Int.(subcommunity_raster[cell...]))
 
@@ -156,8 +156,6 @@ function ecosystem_dynamics!(du, u, p, t)
     du[1:S_star] = du_H
     du[S_star+1:end] = du_P
 end
-cell1 = idx[262][1]
-cell2 = idx[262][2]
 
 # Main simulation function with extinction callback and plotting
 function run_real_community_simulation(NPP_raster, cell; extinction_threshold=1.0, legend=false, npp = false, mu = 0.5, m_mean_pred = 0.1, plot = true)
@@ -242,4 +240,4 @@ function run_real_community_simulation(NPP_raster, cell; extinction_threshold=1.
     end
 end
 
-run_real_community_simulation(npp_raster, idx[262]; plot = false, mu = 1.0, m_mean_pred = 0.05)
+run_real_community_simulation(npp_raster, cell; plot = true, mu = 0.1, m_mean_pred = 0.1)
