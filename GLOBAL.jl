@@ -1,4 +1,4 @@
-PC = "MM-1"
+PC = "nicol"
 @time include("Set-up.jl")
 @time include("Build_Adjacency_Dictionary.jl")
 @time include("HerpsVsBirmmals.jl")
