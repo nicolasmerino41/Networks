@@ -167,7 +167,7 @@ function run_real_community_simulation(NPP_raster, cell; extinction_threshold=1.
     if !isnothing(npp)
         NPP = Float64(npp)
     end
-    println("NPP: ", typeof(NPP))
+    # println("NPP: ", typeof(NPP))
     # mu = 0.1
     H0_mean_aprox = NPP / num_herbivores
     
@@ -198,8 +198,8 @@ function run_real_community_simulation(NPP_raster, cell; extinction_threshold=1.
     predator_data = sol[length(herbivores_list)+1:end, :]  # Predator dynamics
 
     # Extinction analysis
-    extinct_herbivores = count(herbivore_data[:, end] .<= 1.0)
-    extinct_predators = count(predator_data[:, end] .<= 1.0)
+    extinct_herbivores = count(herbivore_data[:, end] .<= extinction_threshold)
+    extinct_predators = count(predator_data[:, end] .<= extinction_threshold)
     alive_herbivores = num_herbivores - extinct_herbivores
     alive_predators = num_predators - extinct_predators
 
@@ -239,5 +239,5 @@ function run_real_community_simulation(NPP_raster, cell; extinction_threshold=1.
     display(fig)
     end
 end
-
-run_real_community_simulation(npp_raster, cell; plot = true, mu = 0.1, m_mean_pred = 0.1)
+cell = sample(idx, 1)[1] 
+run_real_community_simulation(npp_raster, cell; plot = true, npp = 1000.0, mu = 0.8, m_mean_pred = 0.01)
